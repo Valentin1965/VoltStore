@@ -1,0 +1,8 @@
+
+{
+  "name": "Green Light Solar",
+  "description": "Professional solar distribution group providing high-performance energy solutions and AI-driven support.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://voltstore-pro.com/sitemap.xml
+
+# Заборонити сканування адмін-панелі
+Disallow: /admin
+Disallow: /login
+Disallow: /register
+Disallow: /profile
+Disallow: /cart
+Disallow: /checkout
+
+# Дозволити сканування основних сторінок
+Allow: /catalog
+Allow: /calculator
+Allow: /about
+Allow: /contact
+Allow: /products/*
