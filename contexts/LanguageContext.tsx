@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { translations, TranslationKey } from '../utils/translations';
-import { GoogleGenerativeAI } from "@google/generative-ai"; // Виправлено імпорт бібліотеки
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 declare global {
   interface AIStudio {
@@ -118,11 +118,16 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const fetchExchangeRates = useCallback(async (force = false) => {
-    // ВАЖЛИВО: Використовуємо import.meta.env для Vite
+    // ДІАГНОСТИКА: Vite зчитує змінні з префіксом VITE_
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY;
     
+    // Перевірка "в лоб" через вікно браузера
+    if (force || !isKeyBlocked.current) {
+        console.log("Attempting API call with key exists:", !!apiKey);
+    }
+
     if (!apiKey || apiKey === 'undefined' || apiKey === '' || isKeyBlocked.current) {
-      console.warn("[LanguageContext] API Key missing or blocked");
+      setApiError("API Key not found in Environment. Check .env file.");
       return;
     }
 
@@ -133,21 +138,21 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setIsLoadingRates(true);
     try {
-      // Використання правильної ініціалізації SDK
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash", // Виправлено назву моделі на стабільну
+        model: "gemini-1.5-flash", 
         generationConfig: {
             responseMimeType: "application/json",
             temperature: 0.1,
         }
       });
 
-      const prompt = 'Get current exchange rates for 1 EUR to: DKK, NOK, SEK, USD. Respond ONLY with a valid JSON object: {"DKK": number, "NOK": number, "SEK": number, "USD": number}';
+      // Чіткий запит для отримання лише чистого JSON
+      const prompt = 'Return current exchange rates for 1 EUR to: DKK, NOK, SEK, USD. Response must be ONLY JSON: {"DKK": number, "NOK": number, "SEK": number, "USD": number}';
       
       const result = await model.generateContent(prompt);
       const response = await result.response;
-      const text = response.text();
+      const text = response.text().replace(/```json|```/g, "").trim(); // Очищення від Markdown
       const data = JSON.parse(text);
       
       if (data.DKK && data.NOK && data.SEK) {
@@ -172,12 +177,13 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (errStr.includes('429') || errStr.includes('quota')) {
         localStorage.setItem(SUPPRESS_KEY, String(Date.now() + SUPPRESS_DURATION));
         setApiError("Rate limit reached. Using cached values.");
-      } else if (errStr.includes('leaked') || errStr.includes('api_key_invalid') || errStr.includes('safety')) {
-        isKeyBlocked.current = true;
+      } else if (errStr.includes('400') || errStr.includes('api_key_invalid') || errStr.includes('not found')) {
+        // Якщо помилка 400 - показуємо алерт для дебагу
+        window.alert("CRITICAL: API Key is invalid or not passed correctly!");
         setIsApiRestricted(true);
-        setApiError("API Key issue: mark as leaked or invalid.");
+        setApiError("Invalid API Key configuration.");
       } else {
-        setApiError("API Configuration issue. Check env variables.");
+        setApiError("Exchange rate update failed.");
       }
     } finally {
       setIsLoadingRates(false);
