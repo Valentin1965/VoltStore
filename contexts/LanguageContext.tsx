@@ -34,8 +34,8 @@ const FALLBACK_RATES: ExchangeRates = {
 
 const CACHE_KEY = 'voltstore_rates_v4_eur';
 const SUPPRESS_KEY = 'voltstore_api_suppress';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; 
-const SUPPRESS_DURATION = 4 * 60 * 60 * 1000;
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 години
+const SUPPRESS_DURATION = 4 * 60 * 60 * 1000; // 4 години
 
 export interface LanguageContextType {
   language: Language;
@@ -77,7 +77,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return 'en';
     }
   });
-  
+
   const [rates, setRates] = useState<ExchangeRates>(() => {
     try {
       const saved = localStorage.getItem(CACHE_KEY);
@@ -118,43 +118,63 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const fetchExchangeRates = useCallback(async (force = false) => {
-    // ДІАГНОСТИКА: Vite зчитує змінні з префіксом VITE_
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY;
-    
-    // Перевірка "в лоб" через вікно браузера
-    if (force || !isKeyBlocked.current) {
-        console.log("Attempting API call with key exists:", !!apiKey);
-    }
+    // Отримуємо ключ з середовища
+    const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY || "").trim();
 
-    if (!apiKey || apiKey === 'undefined' || apiKey === '' || isKeyBlocked.current) {
-      setApiError("API Key not found in Environment. Check .env file.");
+    // ──────────────────────────────────────────────────────────────
+    // ДЕБАГ-БЛОК — саме тут, перед використанням ключа
+    console.log("[Gemini Runtime Debug] VITE_GEMINI_API_KEY value length:", apiKey.length);
+    console.log("[Gemini Runtime Debug] Starts with:", apiKey.substring(0, 10)); // повинно бути "AIzaSy..."
+    console.log("[Gemini Runtime Debug] Full key (перші 20 символів):", apiKey.substring(0, 20));
+    console.log("[Gemini Runtime Debug] All env keys з GEMINI або API_KEY:", 
+      Object.keys(import.meta.env).filter(k => k.includes('GEMINI') || k.includes('API_KEY'))
+    );
+    console.log("[Gemini Runtime Debug] import.meta.env exists?", !!import.meta.env);
+
+    if (apiKey.length < 30) {
+      console.error("[Gemini Runtime Debug] Ключ завантажився, але невалідний (довжина < 30 символів)");
+      setApiError("VITE_GEMINI_API_KEY завантажився, але значення невалідне (довжина < 30). Перевірте Vercel env vars.");
+      setIsApiRestricted(true);
       return;
     }
 
+    if (!apiKey || apiKey === 'undefined' || apiKey === '' || isKeyBlocked.current) {
+      console.warn("[Gemini Runtime Debug] Ключ відсутній або заблокований");
+      setApiError("API Key not found in Environment. Check Vercel env vars.");
+      setIsApiRestricted(true);
+      return;
+    }
+    // ──────────────────────────────────────────────────────────────
+
     const suppressUntil = Number(localStorage.getItem(SUPPRESS_KEY) || 0);
     if (!force && Date.now() < suppressUntil) {
+      console.log("[Gemini Runtime Debug] Запит придушено через suppress");
       return;
     }
 
     setIsLoadingRates(true);
+
     try {
+      console.log("[Gemini Runtime Debug] Створюємо GoogleGenerativeAI з ключем");
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash", 
+      const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash",
         generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.1,
+          responseMimeType: "application/json",
+          temperature: 0.1,
         }
       });
 
-      // Чіткий запит для отримання лише чистого JSON
+      console.log("[Gemini Runtime Debug] Генеруємо контент з промптом");
       const prompt = 'Return current exchange rates for 1 EUR to: DKK, NOK, SEK, USD. Response must be ONLY JSON: {"DKK": number, "NOK": number, "SEK": number, "USD": number}';
-      
+
       const result = await model.generateContent(prompt);
       const response = await result.response;
-      const text = response.text().replace(/```json|```/g, "").trim(); // Очищення від Markdown
+      const text = response.text().replace(/```json|```/g, "").trim();
+      console.log("[Gemini Runtime Debug] Отримана відповідь:", text.substring(0, 100) + "...");
+
       const data = JSON.parse(text);
-      
+
       if (data.DKK && data.NOK && data.SEK) {
         const newRates: ExchangeRates = {
           EUR: 1.0,
@@ -169,19 +189,20 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         localStorage.removeItem(SUPPRESS_KEY);
         setApiError(null);
         setIsApiRestricted(false);
+        console.log("[Gemini Runtime Debug] Курси успішно оновлено");
       }
     } catch (err: any) {
       const errStr = String(err).toLowerCase();
       console.warn("[LanguageContext] API Call failed:", errStr);
-      
+
       if (errStr.includes('429') || errStr.includes('quota')) {
         localStorage.setItem(SUPPRESS_KEY, String(Date.now() + SUPPRESS_DURATION));
         setApiError("Rate limit reached. Using cached values.");
       } else if (errStr.includes('400') || errStr.includes('api_key_invalid') || errStr.includes('not found')) {
-        // Якщо помилка 400 - показуємо алерт для дебагу
-        window.alert("CRITICAL: API Key is invalid or not passed correctly!");
+        console.error("[Gemini Runtime Debug] Критична помилка 400: ключ невалідний або не переданий");
+        window.alert("CRITICAL: API Key is invalid or not passed correctly! Перевірте Vercel env vars.");
         setIsApiRestricted(true);
-        setApiError("Invalid API Key configuration.");
+        setApiError("Invalid API Key configuration. Перевірте Vercel Environment Variables.");
       } else {
         setApiError("Exchange rate update failed.");
       }
@@ -216,8 +237,8 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const currentLangTranslations = useMemo(() => translations[language] || translations['en'], [language]);
   const currencyCode = currentLangTranslations.currency_code;
   const currencySymbol = currentLangTranslations.currency_symbol;
-  
-  const currentRate = useMemo(() => 
+
+  const currentRate = useMemo(() =>
     rates[currencyCode as keyof ExchangeRates] || FALLBACK_RATES[currencyCode as keyof ExchangeRates] || 1.0
   , [rates, currencyCode]);
 
@@ -232,11 +253,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const refreshRates = useCallback(() => fetchExchangeRates(true), [fetchExchangeRates]);
 
   const value = useMemo(() => ({
-    language, 
-    setLanguage, 
-    t, 
-    formatPrice, 
-    currencySymbol, 
+    language,
+    setLanguage,
+    t,
+    formatPrice,
+    currencySymbol,
     currencyCode,
     isLoadingRates,
     rates,
@@ -245,16 +266,16 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     checkAndPromptKey,
     apiError
   }), [
-    language, 
+    language,
     setLanguage,
-    t, 
-    formatPrice, 
-    currencySymbol, 
-    currencyCode, 
-    isLoadingRates, 
-    rates, 
-    refreshRates, 
-    isApiRestricted, 
+    t,
+    formatPrice,
+    currencySymbol,
+    currencyCode,
+    isLoadingRates,
+    rates,
+    refreshRates,
+    isApiRestricted,
     checkAndPromptKey,
     apiError
   ]);
