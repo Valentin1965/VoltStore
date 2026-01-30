@@ -1,7 +1,6 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { translations, TranslationKey } from '../utils/translations';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai"; // Виправлено імпорт бібліотеки
 
 declare global {
   interface AIStudio {
@@ -119,8 +118,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const fetchExchangeRates = useCallback(async (force = false) => {
-    const apiKey = process.env.API_KEY;
+    // ВАЖЛИВО: Використовуємо import.meta.env для Vite
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY;
+    
     if (!apiKey || apiKey === 'undefined' || apiKey === '' || isKeyBlocked.current) {
+      console.warn("[LanguageContext] API Key missing or blocked");
       return;
     }
 
@@ -131,17 +133,21 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setIsLoadingRates(true);
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: 'Get current exchange rates for 1 EUR to: DKK, NOK, SEK, USD. Respond ONLY with a valid JSON object: {"DKK": number, "NOK": number, "SEK": number, "USD": number}',
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0,
+      // Використання правильної ініціалізації SDK
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash", // Виправлено назву моделі на стабільну
+        generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.1,
         }
       });
 
-      const text = response.text || '{}';
+      const prompt = 'Get current exchange rates for 1 EUR to: DKK, NOK, SEK, USD. Respond ONLY with a valid JSON object: {"DKK": number, "NOK": number, "SEK": number, "USD": number}';
+      
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
       const data = JSON.parse(text);
       
       if (data.DKK && data.NOK && data.SEK) {
@@ -166,14 +172,12 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (errStr.includes('429') || errStr.includes('quota')) {
         localStorage.setItem(SUPPRESS_KEY, String(Date.now() + SUPPRESS_DURATION));
         setApiError("Rate limit reached. Using cached values.");
-      } else if (errStr.includes('leaked') || errStr.includes('safety')) {
+      } else if (errStr.includes('leaked') || errStr.includes('api_key_invalid') || errStr.includes('safety')) {
         isKeyBlocked.current = true;
         setIsApiRestricted(true);
-        setApiError("API Key is marked as leaked.");
+        setApiError("API Key issue: mark as leaked or invalid.");
       } else {
-        // General errors (403, 400) usually mean project configuration issues on Vercel
-        // We don't block the UI, just log it.
-        setApiError("API Configuration issue. Check Vercel env variables.");
+        setApiError("API Configuration issue. Check env variables.");
       }
     } finally {
       setIsLoadingRates(false);
