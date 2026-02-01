@@ -13,7 +13,9 @@ import {
   FileText,
   Link as LinkIcon,
   Crown,
-  Flame
+  Flame,
+  Coins,
+  RefreshCw
 } from 'lucide-react';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -24,12 +26,19 @@ const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e7
 const LANGUAGES = ['en', 'da', 'no', 'sv'] as const;
 
 export const AdminPanel: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'kits' | 'products'>('kits');
+  const [activeTab, setActiveTab] = useState<'kits' | 'products' | 'currency'>('kits');
   const { products, addProduct, updateProduct, deleteProduct, categories } = useProducts();
   const { addNotification } = useNotification();
-  const { formatPrice, t } = useLanguage();
+  const { formatPrice, t, rates, updateRates } = useLanguage();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  const [currencyForm, setCurrencyForm] = useState({
+    USD: rates.USD,
+    DKK: rates.DKK,
+    NOK: rates.NOK,
+    SEK: rates.SEK
+  });
 
   const kits = useMemo(() => products.filter(p => p.category === 'Kits'), [products]);
   const dbProductsList = useMemo(() => products.filter(p => p.category !== 'Kits'), [products]);
@@ -173,6 +182,17 @@ export const AdminPanel: React.FC = () => {
     setIsModalOpen(false);
   };
 
+  const handleUpdateCurrency = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateRates({
+      USD: Number(currencyForm.USD),
+      DKK: Number(currencyForm.DKK),
+      NOK: Number(currencyForm.NOK),
+      SEK: Number(currencyForm.SEK)
+    });
+    addNotification('System exchange rates updated manually.', 'success');
+  };
+
   return (
     <div className="space-y-12 animate-fade-in pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -182,9 +202,10 @@ export const AdminPanel: React.FC = () => {
           </h1>
           <p className="text-slate-400 text-[8px] font-bold uppercase tracking-[0.2em] mt-1">Asset Management Panel</p>
         </div>
-        <div className="flex bg-slate-200/50 p-2 rounded-2xl shadow-inner border border-slate-100">
-          <button onClick={() => setActiveTab('kits')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'kits' ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}>Energy Kits</button>
-          <button onClick={() => setActiveTab('products')} className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'products' ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}>Stock Items</button>
+        <div className="flex bg-slate-200/50 p-1.5 rounded-2xl shadow-inner border border-slate-100 overflow-x-auto scrollbar-hide">
+          <button onClick={() => setActiveTab('kits')} className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'kits' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>Energy Kits</button>
+          <button onClick={() => setActiveTab('products')} className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'products' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>Stock Items</button>
+          <button onClick={() => setActiveTab('currency')} className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'currency' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>Currency</button>
         </div>
       </div>
 
@@ -310,6 +331,59 @@ export const AdminPanel: React.FC = () => {
                </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'currency' && (
+        <div className="max-w-2xl mx-auto bg-white rounded-[3.5rem] border border-slate-100 overflow-hidden shadow-2xl animate-fade-in p-10 space-y-10">
+          <div className="flex items-center gap-4 border-b border-slate-100 pb-8">
+            <div className="bg-slate-900 p-4 rounded-[1.5rem] text-yellow-400 shadow-xl"><Coins size={32} /></div>
+            <div>
+              <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Currency Rates</h3>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manual adjustment of asset conversion (1 EUR base)</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleUpdateCurrency} className="space-y-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {[
+                { label: 'US Dollar (USD)', key: 'USD' },
+                { label: 'Danish Krone (DKK)', key: 'DKK' },
+                { label: 'Norwegian Krone (NOK)', key: 'NOK' },
+                { label: 'Swedish Krona (SEK)', key: 'SEK' }
+              ].map(field => (
+                <div key={field.key} className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">{field.label}</label>
+                  <div className="relative group">
+                    <div className="absolute left-5 top-1/2 -translate-y-1/2 font-black text-slate-300 group-focus-within:text-emerald-500 transition-colors text-[10px]">1€ =</div>
+                    <input 
+                      type="number" 
+                      step="0.0001"
+                      required
+                      value={(currencyForm as any)[field.key]}
+                      onChange={e => setCurrencyForm({...currencyForm, [field.key]: e.target.value})}
+                      className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-16 pr-6 py-4 text-xs font-black outline-none focus:border-emerald-400 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
+               <div className="flex items-center gap-2 mb-2">
+                 <RefreshCw size={14} className="text-slate-400" />
+                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">System Timestamp</span>
+               </div>
+               <div className="text-[10px] font-black text-slate-900 uppercase">{new Date(rates.timestamp).toLocaleString()}</div>
+            </div>
+
+            <button 
+              type="submit" 
+              className="w-full bg-slate-900 hover:bg-emerald-500 text-white py-6 rounded-[2rem] font-black text-[12px] uppercase tracking-widest transition-all shadow-3xl active:scale-95 flex items-center justify-center gap-3"
+            >
+              <Save size={20} /> Update System Rates
+            </button>
+          </form>
         </div>
       )}
 

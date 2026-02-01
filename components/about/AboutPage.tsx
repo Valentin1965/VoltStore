@@ -6,7 +6,7 @@ import { useCart } from '../../contexts/CartContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { 
   Leaf, Users, Zap, Shield, Globe, Award, MapPin, Phone, Mail, CheckCircle2,
-  Cpu, Battery, Sun, Layers, Flame, Crown, ShoppingCart
+  Cpu, Battery, Sun, Layers, Flame, Crown
 } from 'lucide-react';
 import { AppView, Category, Product } from '../../types';
 import { ProductCard, useLocalizedText } from '../catalog/CatalogSection';
@@ -79,7 +79,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
         </div>
       </div>
 
-      {/* Category Horizontal Menu with Illuminated Frames */}
+      {/* Category Horizontal Menu */}
       <div className="mb-20 px-4">
         <div className="flex flex-wrap justify-center gap-6">
           {categoryMenu.map((item) => (
@@ -88,18 +88,13 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
               onClick={() => handleCategoryClick(item.id)}
               className="flex-1 min-w-[150px] max-w-[220px] h-[180px] bg-white border-2 border-emerald-100/80 rounded-[2.5rem] px-6 py-6 flex flex-col items-center justify-center gap-3 group hover:border-emerald-500 hover:shadow-[0_20px_40px_-15px_rgba(16,185,129,0.2)] hover:-translate-y-1 transition-all duration-500 shadow-sm relative overflow-hidden"
             >
-              {/* Subtle background glow effect */}
               <div className="absolute inset-0 bg-emerald-50/0 group-hover:bg-emerald-50/40 transition-colors duration-500"></div>
-              
               <div className="relative z-10 w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-all duration-500 shadow-inner shrink-0">
                 <item.icon size={24} />
               </div>
-              
               <span className="relative z-10 text-[18px] font-black uppercase tracking-tighter text-slate-900 group-hover:text-emerald-600 transition-colors text-center leading-none">
                 {item.label}
               </span>
-
-              {/* Decorative corner light */}
               <div className="absolute top-0 right-0 w-8 h-8 bg-emerald-400/5 rounded-full -mr-4 -mt-4 blur-xl group-hover:bg-emerald-400/20 transition-all"></div>
             </button>
           ))}

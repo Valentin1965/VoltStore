@@ -19,7 +19,7 @@ import { CompareProvider } from './contexts/CompareContext';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { UserProvider } from './contexts/UserContext';
 import { AppView } from './types';
-import { AlertCircle, Key, Lock, X, RefreshCw } from 'lucide-react';
+import { Lock, X } from 'lucide-react';
 
 // Error Boundary for UI safety
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean}> {
@@ -100,7 +100,6 @@ const AppContent: React.FC = () => {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [calcMode, setCalcMode] = useState<1 | 2>(1);
-  const { isApiRestricted, checkAndPromptKey, apiError, refreshRates } = useLanguage();
 
   const handleSetView = useCallback((view: AppView) => {
     if (view === AppView.ADMIN && !isAdminAuthenticated) {
@@ -143,48 +142,9 @@ const AppContent: React.FC = () => {
     }
   }, [currentView, calcMode, handleSetView]);
 
-  const isVercel = window.location.hostname.includes('vercel.app');
-
   return (
     <Layout currentView={currentView} setView={handleSetView}>
       <div id="view-wrapper" key={`view-${currentView}`} className="animate-fade-in min-h-[50vh]">
-        {(isApiRestricted || apiError) && (
-          <div key="api-banner" className={`mb-8 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm border ${isApiRestricted ? 'bg-rose-50 border-rose-100' : 'bg-amber-50 border-amber-100'}`}>
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-2xl text-white shadow-lg ${isApiRestricted ? 'bg-rose-500' : 'bg-amber-500'}`}>
-                <AlertCircle size={24} />
-              </div>
-              <div>
-                <h4 className={`font-black uppercase tracking-tighter text-sm ${isApiRestricted ? 'text-rose-900' : 'text-amber-900'}`}>
-                  {isApiRestricted ? 'API Key Security Warning' : 'AI Service Notice'}
-                </h4>
-                <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${isApiRestricted ? 'text-rose-500' : 'text-amber-600'}`}>
-                  {isApiRestricted 
-                    ? 'The built-in key is restricted. Please select your own in AI Studio.' 
-                    : (apiError || 'Checking AI service status...')}
-                  {isVercel && !process.env.API_KEY && ' — No API Key found in Vercel settings.'}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button 
-                onClick={() => refreshRates()}
-                className="bg-white border border-slate-200 text-slate-900 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm"
-              >
-                <RefreshCw size={16} /> Retry
-              </button>
-              {typeof window.aistudio?.openSelectKey === 'function' && (
-                <button 
-                  onClick={() => checkAndPromptKey()}
-                  className="bg-slate-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center gap-2 shadow-xl"
-                >
-                  <Key size={16} /> Select Key
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-        
         <ErrorBoundary>
           <div key={`content-${currentView}`}>
             {renderedView}

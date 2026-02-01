@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ShoppingCart, LayoutGrid, Calculator, Heart, User, Search, Scale, X, RefreshCw, Info, MapPin, Phone, Mail, Lock, Coins } from 'lucide-react';
+import { ShoppingCart, LayoutGrid, Calculator, Heart, User, Search, Scale, X, Info, MapPin, Phone, Mail, Lock, Coins } from 'lucide-react';
 import { AppView } from '../../types';
 import { useCart } from '../../contexts/CartContext';
 import { useProducts } from '../../contexts/ProductsContext';
@@ -33,7 +33,7 @@ const GreenLightLogo = () => (
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }) => {
   const { totalItems } = useCart();
   const { searchQuery, setSearchQuery } = useProducts();
-  const { t, language, setLanguage, isLoadingRates, refreshRates, rates } = useLanguage();
+  const { t, language, setLanguage, rates } = useLanguage();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
 
@@ -109,17 +109,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
               </button>
             </div>
 
-            {/* Combined Vertical Rates and Language Switcher - Rates moved to the absolute right */}
             <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl md:rounded-2xl border border-slate-100 shrink-0">
               <div className="flex flex-col gap-0.5">
-                <div className="flex flex-col gap-0.5">
-                  {languages.map(lang => (
-                    <button key={lang.code} onClick={() => setLanguage(lang.code)} className={`px-1.5 py-0.5 rounded-md text-[7px] font-black transition-all ${language === lang.code ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
-                      {lang.label}
-                    </button>
-                  ))}
-                </div>
-                <button onClick={() => refreshRates()} className={`mt-1 p-0.5 rounded hover:bg-white transition-all mx-auto ${isLoadingRates ? 'animate-spin text-emerald-500' : 'text-slate-300'}`} title="Refresh Rates"><RefreshCw size={8} /></button>
+                {languages.map(lang => (
+                  <button key={lang.code} onClick={() => setLanguage(lang.code)} className={`px-1.5 py-0.5 rounded-md text-[7px] font-black transition-all ${language === lang.code ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                    {lang.label}
+                  </button>
+                ))}
               </div>
 
               <div className="hidden xl:flex flex-col gap-0.5 border-l border-slate-200 pl-2 ml-0.5">
