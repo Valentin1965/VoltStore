@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { translations, TranslationKey } from '../utils/translations';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -78,15 +78,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const refreshRates = useCallback(async () => {
-    console.log("[LanguageContext] Updating rates...");
+    console.log("[LanguageContext] Starting hardcoded API test...");
     
-    // ПРАВИЛЬНИЙ СПОСІБ ДЛЯ VITE
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY;
-    
-    if (!apiKey) {
-      console.error("API Key missing in environment variables");
-      return;
-    }
+    // ТИМЧАСОВА ПЕРЕВІРКА: Вставляємо ключ прямо в код
+    const apiKey = "AIzaSyDhNAK8S9_HQdCQD-y9nkY_d9IaLOmm9tg"; 
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
@@ -112,11 +107,17 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           timestamp: Date.now()
         };
         updateRates(newRates);
+        console.log("[LanguageContext] Hardcoded test SUCCESS ✅", newRates);
       }
-    } catch (err) {
-      console.error("[LanguageContext] Gemini API Error:", err);
+    } catch (err: any) {
+      console.error("[LanguageContext] Hardcoded test FAILED ❌:", err);
     }
   }, [updateRates]);
+
+  // Спробуємо оновити курси автоматично при завантаженні (один раз)
+  useEffect(() => {
+    refreshRates();
+  }, []);
 
   const t = useCallback((key: TranslationKey): string => {
     const translationSet = translations[language] || translations['en'];
