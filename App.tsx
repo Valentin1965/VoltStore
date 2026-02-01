@@ -99,7 +99,8 @@ const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.ABOUT);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
-  const [calcMode, setCalcMode] = useState<1 | 2>(1);
+  // Adjusted type to match Calculator's 1 | 3 steps
+  const [calcMode, setCalcMode] = useState<1 | 3>(1);
 
   const handleSetView = useCallback((view: AppView) => {
     if (view === AppView.ADMIN && !isAdminAuthenticated) {

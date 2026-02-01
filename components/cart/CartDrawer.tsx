@@ -5,13 +5,12 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight } from 'lucide-react';
 import { LocalizedText } from '../../types';
 
-// Helper hook to handle LocalizedText objects
 const useLocalizedText = () => {
   const { language } = useLanguage();
   return (text: LocalizedText | null | undefined): string => {
     if (!text) return "";
     if (typeof text === 'string') return text;
-    return text[language] || text['en'] || Object.values(text)[0] || "";
+    return (text as any)[language] || (text as any)['en'] || Object.values(text as any)[0] || "";
   };
 };
 
@@ -25,13 +24,8 @@ const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1581092160562-40aa08e7
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheckout }) => {
   const { items, updateQuantity, removeItem, totalPrice, totalItems } = useCart();
-  const { t } = useLanguage();
+  const { t, formatPrice } = useLanguage();
   const getLoc = useLocalizedText();
-
-  const safeFormatPrice = (price: any) => {
-    const num = Number(price || 0);
-    return isNaN(num) ? '0' : num.toLocaleString();
-  };
 
   const getSafeImage = (img: string | null | undefined) => {
     if (!img || typeof img !== 'string' || img.trim() === '') return null;
@@ -80,8 +74,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheck
                 <div key={item.id} className="flex gap-4 group/item pb-6 border-b border-slate-50 last:border-0">
                   <div className="w-20 h-20 bg-slate-50 rounded-2xl overflow-hidden shrink-0 border border-slate-100 flex items-center justify-center p-1">
                     <img 
-                      src={displayImage ? displayImage : (IMAGE_FALLBACK || null)} 
-                      /* Fix: Use getLoc to resolve LocalizedText to string for alt attribute */
+                      src={displayImage ? displayImage : IMAGE_FALLBACK} 
                       alt={getLoc(item.name) || 'Product'} 
                       className="max-w-full max-h-full object-contain group-hover/item:scale-110 transition-transform duration-500" 
                       onError={(e) => { (e.target as HTMLImageElement).src = IMAGE_FALLBACK; }}
@@ -89,11 +82,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheck
                   </div>
                   <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
                     <div>
-                      /* Fix: Use getLoc to resolve LocalizedText to string for React element child */
                       <h3 className="font-black text-slate-900 text-[10px] uppercase tracking-tighter truncate leading-none mb-1">{getLoc(item.name)}</h3>
                       <div className="flex items-center justify-between">
                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{item.category}</span>
-                        <span className="text-[10px] font-black text-slate-900">₴{safeFormatPrice((item.price || 0) * item.quantity)}</span>
+                        <span className="text-[10px] font-black text-slate-900">{formatPrice((item.price || 0) * item.quantity)}</span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between mt-2">
@@ -115,7 +107,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheck
           <div className="p-8 bg-slate-50 border-t border-slate-100 space-y-6">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('cart_total_value')}</span>
-              <span className="text-2xl font-black text-slate-900 tracking-tighter">₴{safeFormatPrice(totalPrice)}</span>
+              <span className="text-2xl font-black text-slate-900 tracking-tighter">{formatPrice(totalPrice)}</span>
             </div>
             <button 
               onClick={() => { onClose(); onCheckout(); }}

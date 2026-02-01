@@ -1,6 +1,7 @@
+
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { translations, TranslationKey } from '../utils/translations';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 export type Language = 'en' | 'da' | 'no' | 'sv';
 
@@ -13,7 +14,7 @@ export interface ExchangeRates {
   timestamp: number;
 }
 
-const FALLBACK_RATES: ExchangeRates = {
+const STABLE_RATES: ExchangeRates = {
   EUR: 1.0,
   DKK: 7.46,
   NOK: 11.38,
@@ -22,126 +23,111 @@ const FALLBACK_RATES: ExchangeRates = {
   timestamp: Date.now()
 };
 
-const CACHE_KEY = 'voltstore_rates_v5_eur';
-
 export interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: TranslationKey) => string;
+  t: (key: TranslationKey | string) => string;
+  translateDynamic: (text: string) => Promise<string>;
   formatPrice: (priceInEUR: number) => string;
   currencySymbol: string;
   currencyCode: string;
   rates: ExchangeRates;
   updateRates: (newRates: Partial<ExchangeRates>) => void;
-  refreshRates: () => Promise<void>;
 }
 
-const DEFAULT_VALUE: LanguageContextType = {
-  language: 'en',
-  setLanguage: () => {},
-  t: (key) => key,
-  formatPrice: (p) => `€${(p || 0).toLocaleString()}`,
-  currencySymbol: '€',
-  currencyCode: 'EUR',
-  rates: FALLBACK_RATES,
-  updateRates: () => {},
-  refreshRates: async () => {},
-};
-
-const LanguageContext = createContext<LanguageContextType>(DEFAULT_VALUE);
+const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>(() => {
-    try {
-      return (localStorage.getItem('voltstore_lang') as Language) || 'en';
-    } catch { return 'en'; }
-  });
-
+  const [language, setLanguageState] = useState<Language>(() => 
+    (localStorage.getItem('voltstore_lang') as Language) || 'en'
+  );
+  
   const [rates, setRates] = useState<ExchangeRates>(() => {
-    try {
-      const saved = localStorage.getItem(CACHE_KEY);
-      return saved ? JSON.parse(saved) : FALLBACK_RATES;
-    } catch (e) { return FALLBACK_RATES; }
+    const saved = localStorage.getItem('voltstore_rates_v3');
+    return saved ? JSON.parse(saved) : STABLE_RATES;
   });
 
-  const setLanguage = useCallback((lang: Language) => {
+  const [aiCache, setAiCache] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('voltstore_ai_translations');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem('voltstore_ai_translations', JSON.stringify(aiCache));
+  }, [aiCache]);
+
+  const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     localStorage.setItem('voltstore_lang', lang);
-  }, []);
+  };
 
   const updateRates = useCallback((newRates: Partial<ExchangeRates>) => {
     setRates(prev => {
       const updated = { ...prev, ...newRates, timestamp: Date.now() };
-      localStorage.setItem(CACHE_KEY, JSON.stringify(updated));
+      localStorage.setItem('voltstore_rates_v3', JSON.stringify(updated));
       return updated;
     });
   }, []);
 
-  const refreshRates = useCallback(async () => {
-    console.log("[LanguageContext] Starting hardcoded API test...");
+  const translateDynamic = async (text: string): Promise<string> => {
+    if (!text || text.length < 2) return text;
     
-    // ТИМЧАСОВА ПЕРЕВІРКА: Вставляємо ключ прямо в код
-    const apiKey = "AIzaSyDhNAK8S9_HQdCQD-y9nkY_d9IaLOmm9tg"; 
+    const cacheKey = `${language}:${text}`;
+    if (aiCache[cacheKey]) return aiCache[cacheKey];
+    
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      console.warn("AI Key not available for translation");
+      return text;
+    }
 
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
-        generationConfig: { responseMimeType: "application/json" }
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Translate to ${language}. Preserve technical terms if standard. Text: "${text}". Return ONLY translation.`,
       });
-
-      const prompt = 'Provide current approximate exchange rates for 1 EUR to: DKK, NOK, SEK, USD. Return ONLY JSON: {"DKK": number, "NOK": number, "SEK": number, "USD": number}';
       
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      
-      const data = JSON.parse(text);
-      if (data.DKK && data.NOK) {
-        const newRates: ExchangeRates = {
-          EUR: 1.0,
-          DKK: Number(data.DKK),
-          NOK: Number(data.NOK),
-          SEK: Number(data.SEK),
-          USD: Number(data.USD || 1.08),
-          timestamp: Date.now()
-        };
-        updateRates(newRates);
-        console.log("[LanguageContext] Hardcoded test SUCCESS ✅", newRates);
-      }
-    } catch (err: any) {
-      console.error("[LanguageContext] Hardcoded test FAILED ❌:", err);
+      const translated = response.text?.trim() || text;
+      setAiCache(prev => ({ ...prev, [cacheKey]: translated }));
+      return translated;
+    } catch (e) {
+      return text;
     }
-  }, [updateRates]);
+  };
 
-  // Спробуємо оновити курси автоматично при завантаженні (один раз)
-  useEffect(() => {
-    refreshRates();
-  }, []);
-
-  const t = useCallback((key: TranslationKey): string => {
-    const translationSet = translations[language] || translations['en'];
-    return (translationSet as any)[key] || (translations['en'] as any)[key] || key;
+  const t = useCallback((key: TranslationKey | string): string => {
+    const currentSet = translations[language] || translations['en'];
+    const val = (currentSet as any)[key] || (translations['en'] as any)[key] || key;
+    return val;
   }, [language]);
 
-  const currentLangTranslations = useMemo(() => translations[language] || translations['en'], [language]);
-  const currencyCode = currentLangTranslations.currency_code;
-  const currencySymbol = currentLangTranslations.currency_symbol;
-  const currentRate = useMemo(() => rates[currencyCode as keyof ExchangeRates] || 1.0, [rates, currencyCode]);
+  const currentLangData = useMemo(() => translations[language] || translations['en'], [language]);
+  const currencyCode = currentLangData.currency_code;
+  const currencySymbol = currentLangData.currency_symbol;
 
   const formatPrice = useCallback((priceInEUR: number): string => {
-    const converted = (priceInEUR || 0) * currentRate;
-    return `${currencySymbol}${converted.toLocaleString(language === 'en' ? 'en-US' : 'de-DE', {
+    const rate = rates[currencyCode as keyof ExchangeRates] || 1.0;
+    const converted = (priceInEUR || 0) * rate;
+    const locale = language === 'en' ? 'en-US' : 'de-DE';
+    return `${currencySymbol}${converted.toLocaleString(locale, {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     })}`;
-  }, [currencySymbol, currentRate, language]);
+  }, [currencySymbol, currencyCode, language, rates]);
 
-  const value = useMemo(() => ({
-    language, setLanguage, t, formatPrice, currencySymbol, currencyCode, rates, updateRates, refreshRates
-  }), [language, setLanguage, t, formatPrice, currencySymbol, currencyCode, rates, updateRates, refreshRates]);
-
-  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+  return (
+    <LanguageContext.Provider value={{ 
+      language, setLanguage, t, translateDynamic, formatPrice, 
+      currencySymbol, currencyCode, rates, updateRates 
+    }}>
+      {children}
+    </LanguageContext.Provider>
+  );
 };
 
-export const useLanguage = () => useContext(LanguageContext);
+export const useLanguage = () => {
+  const context = useContext(LanguageContext);
+  if (!context) throw new Error("useLanguage must be used within LanguageProvider");
+  return context;
+};

@@ -1,4 +1,4 @@
- 
+
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useProducts } from '../../contexts/ProductsContext';
@@ -37,6 +37,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
     return () => { document.body.style.overflow = 'unset'; };
   }, [selectedProduct]);
 
+  // Вибираємо лідерів продажів для відображення
   const leaders = products.filter(p => p.is_leader === true).slice(0, 4);
 
   const categoryMenu = [
@@ -118,7 +119,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
         </div>
       </div>
 
-      {/* Bestsellers Section */}
+      {/* Bestsellers Section - Тепер з доступом до характеристик */}
       {leaders.length > 0 && (
         <div className="mb-24 px-4 space-y-10">
           <div className="flex flex-col items-center text-center space-y-2">
@@ -136,7 +137,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
                 key={p.id} 
                 product={p} 
                 index={idx} 
-                onSelect={setSelectedProduct} 
+                onSelect={(prod) => {
+                  setSelectedProduct(prod);
+                }} 
                 onAddToCart={(e, prod) => { 
                   e.stopPropagation(); 
                   addItem(prod); 
@@ -148,7 +151,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
         </div>
       )}
 
-      {/* Product Detail Modal */}
+      {/* Product Detail Modal (Access to Specs/Forms) */}
       {selectedProduct && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 md:p-10 bg-slate-900/40 backdrop-blur-md overflow-y-auto animate-fade-in">
           <div className="bg-white w-full max-w-6xl rounded-[2.5rem] shadow-3xl border border-white flex flex-col my-auto max-h-[95vh] overflow-hidden">
@@ -255,7 +258,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
                 </div>
               </div>
 
-              {/* Product Characteristics Form Section */}
+              {/* Характеристики продукту (Характеристики товару) */}
               <div className="max-w-4xl space-y-16 pb-20">
                 {selectedProduct.description && (
                   <div className="space-y-4">
@@ -319,4 +322,3 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToCatalog }) => 
     </div>
   );
 };
-                   
