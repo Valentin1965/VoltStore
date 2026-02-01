@@ -33,18 +33,17 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep = 1 }) => {
   });
 
   const generateAiSolution = async () => {
-    // Sanitize API Key from process.env
-    const rawKey = process.env.API_KEY || "";
-    const key = rawKey.trim().replace(/['"]/g, '');
+    // Robust key retrieval
+    const apiKey = (import.meta.env.VITE_API_KEY || process.env.API_KEY || "").trim().replace(/['"]/g, '');
     
-    if (!key || key === "undefined" || key === "") {
-      addNotification("Critical: API Key is missing. Check your environment settings.", "error");
+    if (!apiKey) {
+      addNotification("Critical: API Key is missing. Check Vercel/Local settings.", "error");
       return;
     }
 
     setLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: key });
+      const ai = new GoogleGenAI({ apiKey });
       
       const prompt = `
         As a Solar Energy Expert, design a system for:
@@ -108,13 +107,9 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep = 1 }) => {
       
       let errorMsg = "AI Service temporarily unavailable.";
       if (err.message?.includes('429')) {
-        const delayMatch = err.message.match(/retry in ([\d.]+)s/);
-        const waitTime = delayMatch ? Math.ceil(parseFloat(delayMatch[1])) : 60;
-        errorMsg = `Limit reached (429). Please wait ${waitTime}s.`;
-      } else if (err.message?.includes('404')) {
-        errorMsg = "Model not found (404). Falling back to standard mode.";
+        errorMsg = "Limit reached (429). Please wait 60s.";
       } else if (err.message?.includes('400')) {
-        errorMsg = "Invalid API Key or configuration (400).";
+        errorMsg = "Invalid API Key or project restriction.";
       }
       
       addNotification(errorMsg, "error");

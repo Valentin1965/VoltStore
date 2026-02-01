@@ -18,14 +18,13 @@ export const LiveAssistant: React.FC = () => {
   const handleSend = async () => {
     if (!input.trim()) return;
     
-    // Sanitize API Key
-    const rawKey = process.env.API_KEY || "";
-    const key = rawKey.trim().replace(/['"]/g, '');
+    // Robust key retrieval
+    const apiKey = (import.meta.env.VITE_API_KEY || process.env.API_KEY || "").trim().replace(/['"]/g, '');
     
-    if (!key || key === "undefined" || key === "") {
+    if (!apiKey) {
       setMessages(prev => [...prev, 
         { role: 'user', text: input },
-        { role: 'ai', text: "API key is missing. Check environment variables.", isError: true }
+        { role: 'ai', text: "API key is missing. Check Vercel settings.", isError: true }
       ]);
       setInput('');
       return;
@@ -37,7 +36,7 @@ export const LiveAssistant: React.FC = () => {
     setLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: key });
+      const ai = new GoogleGenAI({ apiKey });
       
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -54,13 +53,9 @@ export const LiveAssistant: React.FC = () => {
       let errorMsg = "Помилка підключення.";
       
       if (err.message?.includes('429')) {
-        const delayMatch = err.message.match(/retry in ([\d.]+)s/);
-        const waitTime = delayMatch ? Math.ceil(parseFloat(delayMatch[1])) : 60;
-        errorMsg = `Ліміт запитів вичерпано (429). Зачекайте ${waitTime}с.`;
-      } else if (err.message?.includes('404')) {
-        errorMsg = "Модель не знайдена (404). Спробуйте пізніше.";
+        errorMsg = "Ліміт запитів вичерпано. Зачекайте 60с.";
       } else if (err.message?.includes('400')) {
-        errorMsg = "Помилка ключа API (400). Перевірте налаштування.";
+        errorMsg = "Помилка ключа API (400). Перевірте налаштування Vercel.";
       }
       
       setMessages(prev => [...prev, { role: 'ai', text: errorMsg, isError: true }]);
@@ -88,7 +83,7 @@ export const LiveAssistant: React.FC = () => {
               <div className="bg-yellow-400 p-1 rounded-lg">
                 <Zap size={14} className="text-slate-900 fill-slate-900" />
               </div>
-              <span className="font-black text-[10px] uppercase tracking-widest">Expert Assistant (Flash 3)</span>
+              <span className="font-black text-[10px] uppercase tracking-widest">Expert Assistant</span>
             </div>
             <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white transition-colors"><X size={18}/></button>
           </div>

@@ -75,9 +75,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const cacheKey = `${language}:${text}`;
     if (aiCache[cacheKey]) return aiCache[cacheKey];
     
-    const apiKey = process.env.API_KEY;
+    // Most reliable way to get key in Vite/Vercel
+    const apiKey = (import.meta.env.VITE_API_KEY || process.env.API_KEY || "").trim().replace(/['"]/g, '');
+
     if (!apiKey) {
-      console.warn("AI Key not available for translation");
+      console.warn("[LanguageContext] API Key not found. Check Vercel Env Variables.");
       return text;
     }
 
@@ -92,6 +94,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setAiCache(prev => ({ ...prev, [cacheKey]: translated }));
       return translated;
     } catch (e) {
+      console.error("[LanguageContext] Translation failed:", e);
       return text;
     }
   };
@@ -109,8 +112,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const formatPrice = useCallback((priceInEUR: number): string => {
     const rate = rates[currencyCode as keyof ExchangeRates] || 1.0;
     const converted = (priceInEUR || 0) * rate;
-    const locale = language === 'en' ? 'en-US' : 'de-DE';
-    return `${currencySymbol}${converted.toLocaleString(locale, {
+    return `${currencySymbol}${converted.toLocaleString(language === 'en' ? 'en-US' : 'de-DE', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     })}`;
