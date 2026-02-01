@@ -23,10 +23,8 @@ export interface ProductsContextType {
 const ProductsContext = createContext<ProductsContextType | undefined>(undefined);
 
 const sanitizeForDb = (product: any) => {
-  // Fields to exclude from direct insert/update
   const { kitComponents, id, created_at, ...cleanProduct } = product;
   
-  // Ensure JSON fields are correctly formatted for Supabase jsonb
   const processJsonField = (field: any) => {
     if (field === null || field === undefined) return [];
     if (Array.isArray(field)) return field;
@@ -45,13 +43,11 @@ const sanitizeForDb = (product: any) => {
   cleanProduct.docs = processJsonField(cleanProduct.docs);
   cleanProduct.features = Array.isArray(cleanProduct.features) ? cleanProduct.features : [];
   
-  // Defaults for boolean/numeric values
   cleanProduct.is_active = cleanProduct.is_active !== false;
   cleanProduct.is_leader = cleanProduct.is_leader === true;
   cleanProduct.price = Number(cleanProduct.price) || 0;
   cleanProduct.stock = Number(cleanProduct.stock) || 0;
   
-  // Clean empty values in arrays
   if (Array.isArray(cleanProduct.images)) {
     cleanProduct.images = cleanProduct.images.filter((img: string) => img && img.trim() !== '');
   }
@@ -83,6 +79,14 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [localKits]);
 
   const fetchProducts = useCallback(async () => {
+    // Check if supabase is initialized with a valid URL before fetching
+    const supabaseUrl = (supabase as any).supabaseUrl;
+    if (!supabaseUrl || supabaseUrl.includes('xyz.supabase.co')) {
+      console.warn('[ProductsContext] Supabase URL is missing or invalid. Skipping fetch.');
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const { data, error } = await supabase
@@ -94,7 +98,10 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setDbProducts(data || []);
     } catch (err: any) {
       console.error('Fetch error:', err);
-      addNotification('Error loading products.', 'error');
+      // Don't spam the user with notification if it's a configuration error during initial load
+      if (!err.message?.includes('failed to fetch') && !err.message?.includes('NetworkError')) {
+        addNotification('Error loading products from database.', 'error');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -219,7 +226,6 @@ export const ProductsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 export const useProducts = (): ProductsContextType => {
   const context = useContext(ProductsContext);
   if (!context) {
-    // Return a dummy object to prevent layout crashes, though it should be wrapped
     return {
       products: [],
       isLoading: false,

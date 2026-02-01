@@ -1,17 +1,18 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
+// Get variables from Vite's import.meta.env or the mapped process.env (from vite.config.ts)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('[Supabase] Missing credentials. Backend features will be disabled.');
+// Debugging check to help identify issues in the console
+if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
+  console.warn('[Supabase Service] Environment variables are missing or invalid. Check Vercel/Local .env settings.');
 }
 
 /**
- * Robust Singleton for SupabaseClient.
- * Uses globalThis to ensure the instance survives Hot Module Replacement (HMR) 
- * and prevents the "Multiple GoTrueClient instances" warning.
+ * Singleton for SupabaseClient.
+ * Ensures only one connection instance is created.
  */
 const getSupabaseInstance = (): SupabaseClient => {
   const global = globalThis as any;
@@ -20,9 +21,10 @@ const getSupabaseInstance = (): SupabaseClient => {
     return global.__supabaseClientInstance;
   }
 
+  // Initialize with the provided variables or a dummy URL to prevent SDK initialization crash
   const client = createClient(
     supabaseUrl || 'https://placeholder.supabase.co', 
-    supabaseAnonKey || 'placeholder',
+    supabaseAnonKey || 'placeholder-key',
     {
       auth: {
         persistSession: true,
