@@ -1,7 +1,6 @@
 
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { translations, TranslationKey } from '../utils/translations';
-import { GoogleGenAI } from "@google/genai";
 
 export type Language = 'en' | 'da' | 'no' | 'sv';
 
@@ -71,26 +70,33 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const translateDynamic = async (text: string): Promise<string> => {
     if (!text || text.length < 2) return text;
-    
+
     const cacheKey = `${language}:${text}`;
     if (aiCache[cacheKey]) return aiCache[cacheKey];
-    
-    // Most reliable way to get key in Vite/Vercel
-    const apiKey = (import.meta.env.VITE_API_KEY || process.env.API_KEY || "").trim().replace(/['"]/g, '');
-
-    if (!apiKey) {
-      console.warn("[LanguageContext] API Key not found. Check Vercel Env Variables.");
-      return text;
-    }
 
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Translate to ${language}. Preserve technical terms if standard. Text: "${text}". Return ONLY translation.`,
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/ai-assistant`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: `Translate to ${language}. Preserve technical terms if standard. Text: "${text}". Return ONLY translation.`,
+          type: 'translate',
+          language
+        })
       });
-      
-      const translated = response.text?.trim() || text;
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const translated = data.text?.trim() || text;
       setAiCache(prev => ({ ...prev, [cacheKey]: translated }));
       return translated;
     } catch (e) {

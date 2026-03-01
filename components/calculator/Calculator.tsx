@@ -4,9 +4,8 @@ import { useNotification } from '../../contexts/NotificationContext';
 import { useCart } from '../../contexts/CartContext';
 import { useProducts } from '../../contexts/ProductsContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { GoogleGenAI, Type } from "@google/genai";
-import { 
-  RotateCcw, Check, ShieldCheck, 
+import {
+  RotateCcw, Check, ShieldCheck,
   Activity, Cpu, Zap, Settings2, Target, Wallet, Sparkles
 } from 'lucide-react';
 import { KitComponent } from '../../types';
@@ -33,64 +32,32 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep = 1 }) => {
   });
 
   const generateAiSolution = async () => {
-    // Robust key retrieval
-    const apiKey = (import.meta.env.VITE_API_KEY || process.env.API_KEY || "").trim().replace(/['"]/g, '');
-    
-    if (!apiKey) {
-      addNotification("Critical: API Key is missing. Check Vercel/Local settings.", "error");
-      return;
-    }
-
     setLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const prompt = `
-        As a Solar Energy Expert, design a system for:
-        Object: ${config.objectType}, Monthly Usage: ${config.monthlyUsage}, 
-        Primary Goal: ${config.purpose}, Budget Level: ${config.budget}.
-        
-        IMPORTANT: Return the "title" and "description" in UKRAINIAN language.
-        Components names should remain in English technical terms.
-        
-        Available stock items: Inverters, Batteries, Solar Panels.
-        Return a valid JSON object matching the requested schema.
-      `;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: { 
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING, description: "System name in Ukrainian" },
-              description: { type: Type.STRING, description: "Brief explanation of benefits in Ukrainian" },
-              components: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING },
-                    price: { type: Type.NUMBER, description: "Estimated price in EUR" },
-                    quantity: { type: Type.NUMBER }
-                  },
-                  required: ["name", "price", "quantity"]
-                }
-              }
-            },
-            required: ["title", "description", "components"]
-          }
-        }
+      const response = await fetch(`${supabaseUrl}/functions/v1/ai-calculator`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ config })
       });
 
-      const text = response.text;
-      if (!text) throw new Error("Empty response from AI");
-      
-      const data = JSON.parse(text);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
       setResult({ title: data.title, description: data.description });
-      
+
       const components: KitComponent[] = (data.components || []).map((c: any) => ({
         id: `ai-${Math.random().toString(36).substr(2, 9)}`,
         name: c.name,
@@ -104,14 +71,14 @@ export const Calculator: React.FC<CalculatorProps> = ({ initialStep = 1 }) => {
       addNotification("System designed by AI Expert", "success");
     } catch (err: any) {
       console.error('AI Calculation Error:', err);
-      
+
       let errorMsg = "AI Service temporarily unavailable.";
       if (err.message?.includes('429')) {
         errorMsg = "Limit reached (429). Please wait 60s.";
       } else if (err.message?.includes('400')) {
         errorMsg = "Invalid API Key or project restriction.";
       }
-      
+
       addNotification(errorMsg, "error");
     } finally {
       setLoading(false);

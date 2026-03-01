@@ -2,7 +2,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Zap, Send, Loader2, MessageSquare, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { GoogleGenAI } from "@google/genai";
 
 export const LiveAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -17,18 +16,6 @@ export const LiveAssistant: React.FC = () => {
 
   const handleSend = async () => {
     if (!input.trim()) return;
-    
-    // Robust key retrieval
-    const apiKey = (import.meta.env.VITE_API_KEY || process.env.API_KEY || "").trim().replace(/['"]/g, '');
-    
-    if (!apiKey) {
-      setMessages(prev => [...prev, 
-        { role: 'user', text: input },
-        { role: 'ai', text: "API key is missing. Check Vercel settings.", isError: true }
-      ]);
-      setInput('');
-      return;
-    }
 
     const userMsg = input;
     setInput('');
@@ -36,28 +23,39 @@ export const LiveAssistant: React.FC = () => {
     setLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: userMsg,
-        config: {
-          systemInstruction: `You are VoltStore Technical Support Specialist. You MUST speak and respond in UKRAINIAN language only. Answer technical questions about solar energy, batteries, and inverters professionally and helpfully.`
-        }
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/ai-assistant`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: userMsg,
+          type: 'assistant',
+          language: 'uk'
+        })
       });
 
-      const aiText = response.text || "Вибачте, сталася помилка при обробці вашого запиту.";
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const aiText = data.text || "Вибачте, сталася помилка при обробці вашого запиту.";
       setMessages(prev => [...prev, { role: 'ai', text: aiText }]);
     } catch (err: any) {
       console.error('AI Chat Error:', err);
       let errorMsg = "Помилка підключення.";
-      
+
       if (err.message?.includes('429')) {
         errorMsg = "Ліміт запитів вичерпано. Зачекайте 60с.";
       } else if (err.message?.includes('400')) {
         errorMsg = "Помилка ключа API (400). Перевірте налаштування Vercel.";
       }
-      
+
       setMessages(prev => [...prev, { role: 'ai', text: errorMsg, isError: true }]);
     } finally {
       setLoading(false);

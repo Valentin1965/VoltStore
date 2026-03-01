@@ -21,12 +21,13 @@
     }
   },
   "include": [
-    "index.tsx", 
-    "App.tsx", 
-    "components/**/*", 
-    "contexts/**/*", 
-    "types/**/*", 
-    "utils/**/*", 
-    "services/**/*"
+    "index.tsx",
+    "App.tsx",
+    "components/**/*",
+    "contexts/**/*",
+    "types/**/*",
+    "utils/**/*",
+    "services/**/*",
+    "vite-env.d.ts"
   ]
 }
